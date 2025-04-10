@@ -1,19 +1,15 @@
 from flask import Flask, request, jsonify, render_template
+from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
-import tensorflow as tf
 import os
 import numpy as np
 import cv2
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# Load the TFLite model
-interpreter = tf.lite.Interpreter(model_path="terrain_model.tflite")
-interpreter.allocate_tensors()
-
-# Get input and output tensor details
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+# Load the trained model
+model_path = os.path.join('static', 'model', 'terrain.h5')
+model = load_model(model_path)
 
 # Define class labels
 class_labels = ['Grassy_Terrain', 'Marshy_Terrain', 'Other_Image', 'Rocky_Terrain', 'Sandy_Terrain']
@@ -21,7 +17,7 @@ class_labels = ['Grassy_Terrain', 'Marshy_Terrain', 'Other_Image', 'Rocky_Terrai
 def preprocess_image(img_path):
     img = image.load_img(img_path, target_size=(224, 224))
     img_array = image.img_to_array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
+    img_array = np.expand_dims(img_array, axis=0)
     return img_array
 
 def detect_roughness(image):
@@ -39,14 +35,8 @@ def slipperiness_percentage(image):
 
 def predict_terrain(img_path):
     image_for_analysis = cv2.imread(img_path)
-    img_array = preprocess_image(img_path)
-
-    # Set the tensor to the image
-    interpreter.set_tensor(input_details[0]['index'], img_array)
-    interpreter.invoke()
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-
-    predicted_class = class_labels[np.argmax(output_data)].lower()
+    predictions = model.predict(preprocess_image(img_path))
+    predicted_class = class_labels[np.argmax(predictions)].lower()
     roughness_lvl = detect_roughness(image_for_analysis)
     slipperiness_lvl = slipperiness_percentage(image_for_analysis)
     return predicted_class, roughness_lvl, slipperiness_lvl
@@ -79,4 +69,6 @@ def predict():
     })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
+
