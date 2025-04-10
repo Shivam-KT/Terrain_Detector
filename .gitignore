@@ -1,6 +1,0 @@
-__pycache__/
-*.pyc
-.env
-static/uploads/
-*.h5
-.DS_Store
